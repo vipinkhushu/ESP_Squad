@@ -1,0 +1,30 @@
+{
+  "name": "esp_squad",
+  "version": "1.0.0",
+  "description": "esp game for squad",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vipinkhushu/ESP_Squad.git"
+  },
+  "keywords": [
+    "esp",
+    "squad"
+  ],
+  "author": "vipin khushu",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/vipinkhushu/ESP_Squad/issues"
+  },
+  "homepage": "https://github.com/vipinkhushu/ESP_Squad#readme",
+  "dependencies": {
+    "body-parser": "^1.17.2",
+    "ejs": "^2.5.7",
+    "express": "^4.15.4",
+    "express-session": "^1.15.5",
+    "mongoose":"^4.11.9"
+  }
+}
