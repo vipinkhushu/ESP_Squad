@@ -73,6 +73,7 @@ app.post('/submitResult',function(req, res){
 				email_arr.push(sess.email);
 
 					submissionModel.find({questions:questions,type:"child",status:"pending"},function(err, resulttwo){
+						
 						for(i in resulttwo){
 
 							arrayResult = resulttwo[i].answers.split(',');
@@ -83,11 +84,10 @@ app.post('/submitResult',function(req, res){
 							if(arrayResult!=final_arr[0]){
 								flag=0;
 							}
-							submissionModel.update({email:resulttwo[i].email,questions:questions,type:"child"},{status:"closed"});
-							console.log("closed"+resulttwo[i].email);
+							console.log("removing"+resulttwo[i].email);
+							submissionModel.remove({email:resulttwo[i].email});
 						}
-
-					})					
+					})	
 				var newSubmission = new submissionModel({email:sess.email,
 					questions:questions,
 					answers:newanswers,
