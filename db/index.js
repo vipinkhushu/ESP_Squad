@@ -22,7 +22,8 @@ var submissionModel = mongoose.model('submissionModel',mongoose.Schema({
 	questions: String,
 	answers: String,
 	status: String,
-	matched_with: String,
+	type: String,
+	matched_with: Number,
 	time_stamp: String
 }))
 
@@ -35,65 +36,104 @@ app.post('/submitResult',function(req, res){
 	if(!sess.email){
 		sess.email=req.body.user;
 	}
-	submissionModel.findOne({status:"pending",matched_with:sess.email},function(err, result){
+	submissionModel.findOne({status:"pending",type:"parent",questions:questions},function(err, result){
 		if(err){
 			console.log("Error in searching a match");
 			res.redirect('/');
 		}
 		if(result){
-			
-			var arrayResult = result.answers.split(',');
-			console.log(arrayResult);
-			console.log(newanswers);
-			var flag=0;
-			for(i=0;i<newanswers.length;i++){
-				if (arrayResult[i]!=','&&arrayResult[i]==newanswers[i]) {
-					flag++;
-				}
-				if(flag==newanswers.length-4){
-					playerCredentialsModel.findOneAndUpdate({email:sess.email},{$inc:{score: 1}},function(err, result){
-						if(result){
-							console.log(sess.email+" rewarded"+ 1);
-						}
-					})
-					playerCredentialsModel.findOneAndUpdate({email:result.email},{$inc:{score: 1}},function(err, result){
-						if(result){
-							console.log(result.email+" rewarded"+ 1);
-						}
-					})
-					res.json({'status':1});
-				}
-			}
-			
-			console.log(flag+ ' match');
-
-			submissionModel.findOneAndUpdate({email:result.email,status:"pending",matched_with:sess.email},{status:"done"},function(err){
+			if(result.matched_with!=keys.consensus_limit-1){
+				
+				var newSubmission = new submissionModel({email:sess.email,
+					questions:questions,
+					answers:newanswers,
+					status:"pending",
+					type:"child",
+					matched_with:0,
+					time_stamp:new Date()
+				});	
+				newSubmission.save(function(err){
+					if(err){
+						console.log('Error in saving new pending Submission');
+					}
+					console.log('submission of '+ sess.email +' created');
+				});
+			submissionModel.findOneAndUpdate({email:result.email,status:"pending",type:"parent",questions:questions},{$inc:{matched_with:1}},function(err){
 				console.log('submission of '+ result.email +' closed');
 			})
-			var newSubmission = new submissionModel({email:sess.email,
-				questions:questions,
-				answers:newanswers,
-				status:"done",
-				matched_with:result.email,
-				time_stamp:new Date()
-			});	
-			newSubmission.save(function(err){
-				if(err){
-					console.log('Error in saving new pending Submission');
+			res.json({'status':0});
+			}else if(result.matched_with==keys.consensus_limit-1){
+				var flag=1;
+				final_arr=[];
+				email_arr=[];
+				var arrayResult = result.answers.split(',');
+				final_arr.push(arrayResult);
+				final_arr.push(newanswers);
+				email_arr.push(result.email);
+				email_arr.push(sess.email);
+
+					submissionModel.find({questions:questions,type:"child",status:"pending"},function(err, resulttwo){
+						for(i in resulttwo){
+
+							arrayResult = resulttwo[i].answers.split(',');
+							console.log(arrayResult);
+							console.log(newanswers);
+							email_arr.push(resulttwo[i].email);
+							final_arr.push(arrayResult);
+							if(arrayResult!=final_arr[0]){
+								flag=0;
+							}
+							submissionModel.update({email:resulttwo[i].email,questions:questions,type:"child"},{status:"closed"});
+							console.log("closed"+resulttwo[i].email);
+						}
+
+					})					
+				var newSubmission = new submissionModel({email:sess.email,
+					questions:questions,
+					answers:newanswers,
+					status:"closed",
+					type:"child",
+					matched_with:0,
+					time_stamp:new Date()
+				});	
+				newSubmission.save(function(err){
+					if(err){
+						console.log('Error in saving new pending Submission');
+					}
+					console.log('submission of '+ sess.email +' created');
+				});
+				submissionModel.findOneAndUpdate({email:result.email,status:"pending",type:"parent",questions:questions},{$inc:{matched_with:1},status:"closed"},function(err){
+					console.log('submission of '+ result.email +' closed');
+				})
+				if(flag==1){
+					scoreinc=0;
+					for(i=0;i<final_arr[0].length;i++){
+						if (final_arr[0]!=','&&final_arr[0]==final_arr[1]) {
+							scoreinc++;
+						}
+					}	
+					for(x in email_arr){
+						console.log("rewarding-> "+x);
+						playerCredentialsModel.findOneAndUpdate({email:x},{$inc:{score: scoreinc}},function(err, result){
+							if(result){
+								console.log(x+" rewarded"+ scoreinc);
+							}
+						})						
+					}
+					res.json({'status':scoreinc});
+
+				}else{
+					res.json({'status':0});
 				}
-				console.log('submission of '+ sess.email +' created and closed');
-			});
-			
-			
-
-
+			}
 
 		}else{
 			var newSubmission = new submissionModel({email:sess.email,
 				questions:questions,
 				answers:newanswers,
 				status:"pending",
-				matched_with:"",
+				type:"parent",
+				matched_with:0,
 				time_stamp:new Date()
 			});
 			newSubmission.save(function(err){
@@ -113,7 +153,7 @@ app.get('/game',function(req, res){
 	if(sess.email){
 		var curr_time = new Date();
 
-		submissionModel.find({status:"pending"},
+		submissionModel.find({status:"pending",type:"parent"},
 			function(err, result){
 				if(err){
 					console.log('error in finding submissions');
@@ -121,13 +161,17 @@ app.get('/game',function(req, res){
 				}
 				var flag=0;
 				if(result){
+					console.log("-->"+result.size);
+
 					for(x in result){
-						if(result[x].matched_with=""){
+
+						console.log("x->"+x);
+						if(result[x].matched_with<keys.consensus_limit){
 							console.log('Matched with'+ result[x].email);
 							res.render('game',{email:sess.email,score:sess.score,questions:result[x].questions})
-							submissionModel.findOneAndUpdate({email:result[x].email,status:"pending"},{matched_with:sess.email,time_stamp:curr_time},function(err,result){
+							submissionModel.findOneAndUpdate({email:result[x].email,status:"pending",type:"parent"},{time_stamp:curr_time},function(err,result){
 								if(result){
-									console.log(result[x]+' updated and matched with'+ sess.email );
+									//console.log(result[x].email+' updated and matched with'+ sess.email );
 								}
 							})
 							flag=1;
@@ -139,9 +183,9 @@ app.get('/game',function(req, res){
 							if(data_time<curr_time){
 								console.log('Matched with'+ result[x].email);
 								res.render('game',{email:sess.email,score:sess.score,questions:result[x].questions})
-								submissionModel.findOneAndUpdate({email:result[x].email,status:"pending"},{matched_with:sess.email,time_stamp:curr_time},function(err,result){
+								submissionModel.findOneAndUpdate({email:result[x].email,status:"pending",type:"parent"},{time_stamp:curr_time},function(err,result){
 									if(result){
-										console.log(result[x]+' updated and matched with'+ sess.email );
+										//console.log(result.email+' updated and matched with'+ sess.email );
 									}
 								})
 								flag=1;
